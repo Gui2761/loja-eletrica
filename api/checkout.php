@@ -1,5 +1,6 @@
 <?php
 // --- ATIVAR MODO DE DEPURAÇÃO (Para ver erros escondidos) ---
+// die(json_encode(["erro" => "ESTOU NO ARQUIVO CERTO"])); 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -16,7 +17,7 @@ header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
 
 // --- 2. SEU TOKEN JÁ CONFIGURADO ---
-$access_token = "TEST-5765774969574070-013115-dd770d53bdcbdc38f754df206d637f9c-1568196558";
+$access_token = "TEST-4285126338151576-013115-44c0a918c163819c0d4f7d1566584e83-1568196558";
 
 // --- 3. RECEBER DADOS DO SITE ---
 $json = file_get_contents("php://input");
@@ -39,7 +40,7 @@ try {
         "description" => $nome_produto,
         "payment_method_id" => "pix",
         "payer" => [
-            "email" => "cliente_" . uniqid() . "@test.com", // Email fake obrigatório
+            "email" => "test_user_" . uniqid() . "@testuser.com",
             "first_name" => "Cliente",
             "last_name" => "Teste",
             "identification" => [ 
@@ -52,7 +53,7 @@ try {
     // --- 5. ENVIAR VIA CURL ---
     $curl = curl_init();
     curl_setopt_array($curl, [
-        CURLOPT_URL => "https://api.mercadopago.com/v1/payments",
+        CURLOPT_URL => "https://api.mercadopago.com/v1/payments?access_token=" . $access_token,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => "POST",
         CURLOPT_POSTFIELDS => json_encode($pedido_mp),
