@@ -5,89 +5,204 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EletroShop Profissional</title>
     <style>
-        /* Um CSS básico para não ficar feio */
-        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
-        header { text-align: center; margin-bottom: 40px; }
+        /* CSS GERAL */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; }
+        header { text-align: center; margin-bottom: 40px; color: #333; }
+        header h1 { margin: 0; font-size: 2.5rem; }
         
+        /* GRID DE PRODUTOS */
         .grid-produtos {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 20px;
+            gap: 25px;
             max-width: 1200px;
             margin: 0 auto;
         }
 
+        /* CARD DO PRODUTO */
         .card {
             background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             text-align: center;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
-        .card:hover { transform: translateY(-5px); }
-        .card h3 { font-size: 1.1rem; color: #333; height: 50px; }
-        .price { font-size: 1.4rem; color: #2ecc71; font-weight: bold; margin: 15px 0; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+        .card h3 { font-size: 1.1rem; color: #2c3e50; margin-top: 0; }
+        .price { font-size: 1.5rem; color: #27ae60; font-weight: bold; margin: 15px 0; }
+        
+        /* BOTÃO COMPRAR */
         .btn-comprar {
             background-color: #007bff;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 12px;
+            border-radius: 6px;
             cursor: pointer;
             width: 100%;
             font-size: 1rem;
+            font-weight: 600;
+            transition: background 0.2s;
         }
         .btn-comprar:hover { background-color: #0056b3; }
+        .btn-comprar:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* MODAL DO PIX (JANELA) */
+        #modal-pix {
+            display: none; /* Começa escondido */
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 25px rgba(0,0,0,0.2);
+        }
+        .pix-code-area {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 0.8rem;
+            margin: 15px 0;
+            max-height: 100px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
 
     <header>
         <h1>⚡ EletroShop</h1>
-        <p>Materiais elétricos com entrega rápida</p>
+        <p>Materiais elétricos com entrega imediata</p>
     </header>
 
     <div id="lista-produtos" class="grid-produtos">
-        <p style="text-align:center; width:100%">Carregando estoque...</p>
+        <p style="text-align:center; width:100%; grid-column: 1/-1;">Carregando estoque...</p>
+    </div>
+
+    <div id="modal-pix">
+        <div class="modal-content">
+            <h2 style="color:#007bff">Pagamento via PIX 💠</h2>
+            <p>Escaneie o QR Code abaixo:</p>
+            
+            <img id="img-qr" style="width: 200px; height: 200px; object-fit: contain; border: 1px solid #eee;">
+            
+            <p style="margin-top:20px; font-weight:bold;">Ou copie e cole:</p>
+            <div id="txt-copia" class="pix-code-area">Gerando código...</div>
+            
+            <button class="btn-comprar" style="background:#e74c3c; margin-top:10px" onclick="fecharModal()">Fechar Janela</button>
+        </div>
     </div>
 
     <script>
+        // 1. BUSCAR PRODUTOS
         async function buscarProdutos() {
             try {
-                // Chama a nossa API PHP
-                // Nota: O "../api" sobe uma pasta para achar o arquivo
                 const response = await fetch('../api/produtos.php');
                 const produtos = await response.json();
-
+                
                 const container = document.getElementById('lista-produtos');
-                container.innerHTML = ''; // Limpa o carregando
+                container.innerHTML = '';
+
+                // Se não tiver produtos ou der erro no PHP
+                if(produtos.erro) {
+                    container.innerHTML = `<p style="color:red; text-align:center">Erro: ${produtos.erro}</p>`;
+                    return;
+                }
 
                 produtos.forEach(produto => {
                     const div = document.createElement('div');
                     div.className = 'card';
                     div.innerHTML = `
-                        <h3>${produto.name}</h3>
-                        <p style="font-size:0.9rem; color:#666">${produto.description}</p>
-                        <div class="price">R$ ${parseFloat(produto.price).toFixed(2).replace('.', ',')}</div>
-                        <button class="btn-comprar" onclick="iniciarCheckout('${produto.name}', ${produto.price})">
-                            Comprar Agora
-                        </button>
+                        <div>
+                            <h3>${produto.name}</h3>
+                            <p style="font-size:0.9rem; color:#666">${produto.description}</p>
+                        </div>
+                        <div>
+                            <div class="price">R$ ${parseFloat(produto.price).toFixed(2).replace('.', ',')}</div>
+                            <button class="btn-comprar" onclick="iniciarCheckout('${produto.name}', ${produto.price}, this)">
+                                Comprar Agora
+                            </button>
+                        </div>
                     `;
                     container.appendChild(div);
                 });
 
             } catch (erro) {
                 console.error(erro);
-                document.getElementById('lista-produtos').innerHTML = '<p>Erro ao carregar produtos. Verifique se o XAMPP está rodando.</p>';
+                document.getElementById('lista-produtos').innerHTML = '<p style="text-align:center">Erro ao conectar com o servidor (XAMPP).</p>';
             }
         }
 
-        function iniciarCheckout(nome, preco) {
-            alert(`Você clicou em comprar: ${nome}\nValor: R$ ${preco}\n\n(No próximo passo, isso vai gerar o PIX!)`);
+        // 2. FUNÇÃO DE COMPRAR (Conecta com checkout.php)
+        async function iniciarCheckout(nome, preco, botao) {
+            // Efeito visual no botão
+            const textoOriginal = botao.innerText;
+            botao.innerText = "Gerando PIX...";
+            botao.disabled = true;
+
+            try {
+                const response = await fetch('../api/checkout.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nome: nome, preco: preco })
+                });
+
+                // Tenta ler o JSON. Se falhar, mostra o texto do erro (ex: erro PHP)
+                const textoResposta = await response.text();
+                let resultado;
+                try {
+                    resultado = JSON.parse(textoResposta);
+                } catch(e) {
+                    console.error("Erro no JSON:", textoResposta);
+                    alert("Erro técnico no servidor. Abra o Console (F12) para ver.");
+                    botao.innerText = textoOriginal;
+                    botao.disabled = false;
+                    return;
+                }
+
+                if (resultado.sucesso) {
+                    // Preenche o Modal
+                    document.getElementById('img-qr').src = "data:image/png;base64," + resultado.qr_base64;
+                    document.getElementById('txt-copia').innerText = resultado.copia_cola;
+                    
+                    // Abre o Modal
+                    document.getElementById('modal-pix').style.display = 'flex';
+                } else {
+                    console.error(resultado);
+                    alert("Erro ao gerar PIX: " + (resultado.erro || JSON.stringify(resultado)));
+                }
+
+            } catch (erro) {
+                console.error(erro);
+                alert("Erro de conexão com a API.");
+            }
+
+            // Volta o botão ao normal
+            botao.innerText = textoOriginal;
+            botao.disabled = false;
         }
 
-        // Roda a função assim que abre a tela
+        function fecharModal() {
+            document.getElementById('modal-pix').style.display = 'none';
+        }
+
+        // Inicia a loja
         buscarProdutos();
     </script>
 
