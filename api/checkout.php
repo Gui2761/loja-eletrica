@@ -1,120 +1,92 @@
 <?php
-// --- ATIVAR MODO DE DEPURAÇÃO (Para ver erros escondidos) ---
-// die(json_encode(["erro" => "ESTOU NO ARQUIVO CERTO"])); 
+// api/checkout.php
+// --- CONFIGURAÇÃO ---
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
-// --- 1. CONEXÃO E CABEÇALHOS ---
-// Tenta incluir a conexão. Se falhar, o script para e avisa.
-if (!file_exists('conexao.php')) {
-    die(json_encode(["erro" => "Arquivo conexao.php não encontrado na pasta api!"]));
-}
-require 'conexao.php';
-
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
 
-// --- 2. SEU TOKEN JÁ CONFIGURADO ---
+// Verifica conexão
+if (!file_exists('conexao.php')) {
+    die(json_encode(["erro" => "Arquivo conexao.php faltando!"]));
+}
+require 'conexao.php';
+
+// SEU TOKEN (O mesmo que funcionou no teste_pro)
 $access_token = "TEST-4285126338151576-013115-44c0a918c163819c0d4f7d1566584e83-1568196558";
 
-// --- 3. RECEBER DADOS DO SITE ---
+// Recebe dados do site
 $json = file_get_contents("php://input");
 $dados = json_decode($json, true);
 
-// Se não veio nada, avisa
 if (empty($dados)) {
-    echo json_encode(["erro" => "O PHP recebeu dados vazios. Verifique o JavaScript."]);
+    echo json_encode(["erro" => "Sem dados recebidos."]);
     exit;
 }
 
 try {
-    // Dados vindos do Front
     $nome_produto = $dados['nome'];
     $preco_produto = (float)$dados['preco'];
 
-    // --- 4. PREPARAR PEDIDO PRO MERCADO PAGO ---
-    $pedido_mp = [
-        "transaction_amount" => $preco_produto,
-        "description" => $nome_produto,
-        "payment_method_id" => "pix",
-        "payer" => [
-            "email" => "test_user_" . uniqid() . "@testuser.com",
-            "first_name" => "Cliente",
-            "last_name" => "Teste",
-            "identification" => [ 
-                "type" => "CPF", 
-                "number" => "19119119100" 
+    // --- CRIAÇÃO DA PREFERÊNCIA (LINK) ---
+    $preference_data = [
+        "items" => [
+            [
+                "title" => $nome_produto,
+                "quantity" => 1,
+                "currency_id" => "BRL",
+                "unit_price" => $preco_produto
             ]
-        ]
+        ],
+        "back_urls" => [
+            // Depois de pagar, o cliente volta pro seu site
+            "success" => "http://localhost/loja-eletrica",
+            "failure" => "http://localhost/loja-eletrica",
+            "pending" => "http://localhost/loja-eletrica"
+        ],
+        "auto_return" => "approved"
     ];
 
-    // --- 5. ENVIAR VIA CURL ---
     $curl = curl_init();
     curl_setopt_array($curl, [
-        CURLOPT_URL => "https://api.mercadopago.com/v1/payments?access_token=" . $access_token,
+        CURLOPT_URL => "https://api.mercadopago.com/checkout/preferences",
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => "POST",
-        CURLOPT_POSTFIELDS => json_encode($pedido_mp),
+        CURLOPT_POSTFIELDS => json_encode($preference_data),
         CURLOPT_HTTPHEADER => [
             "Content-Type: application/json",
-            "Authorization: Bearer " . $access_token,
-            "X-Idempotency-Key: " . uniqid()
+            "Authorization: Bearer " . $access_token
         ],
     ]);
 
     $resposta = curl_exec($curl);
-    
-    if ($resposta === false) {
-        throw new Exception("Erro no cURL: " . curl_error($curl));
-    }
-    
-    curl_close($curl);
     $mp = json_decode($resposta, true);
+    curl_close($curl);
 
-    // --- 6. VERIFICAR SE GEROU O PIX ---
-    // Se o MP devolveu um ID, deu certo!
-    if (isset($mp['id'])) {
-        $payment_id = $mp['id'];
+    // Se gerou o link com sucesso
+    if (isset($mp['sandbox_init_point'])) {
         
-        // --- 7. SALVAR NO BANCO DE DADOS ---
-        // Aqui gravamos na tabela 'orders' que você criou
-        $sql = "INSERT INTO orders (product_name, price, status, payment_id) VALUES (:nome, :preco, 'pendente', :pid)";
-        
+        // Salva no banco (Opcional, mas bom pra controle)
+        $sql = "INSERT INTO orders (product_name, price, status, payment_id) VALUES (:nome, :preco, 'pendente_link', :pid)";
         $stmt = $pdo->prepare($sql);
         $stmt->bindParam(':nome', $nome_produto);
         $stmt->bindParam(':preco', $preco_produto);
-        $stmt->bindParam(':pid', $payment_id);
-        
-        if($stmt->execute()) {
-            $id_pedido = $pdo->lastInsertId();
-        } else {
-            throw new Exception("Erro ao salvar no banco de dados.");
-        }
+        $stmt->bindValue(':pid', $mp['id']); // ID da preferência
+        $stmt->execute();
 
-        // --- 8. DEVOLVER O QR CODE PRO SITE ---
+        // Devolve o link pro site
         echo json_encode([
             "sucesso" => true,
-            "pedido_id" => $id_pedido,
-            "qr_base64" => $mp['point_of_interaction']['transaction_data']['qr_code_base64'],
-            "copia_cola" => $mp['point_of_interaction']['transaction_data']['qr_code']
+            "link" => $mp['sandbox_init_point'] // Link de pagamento
         ]);
 
     } else {
-        // Se o Mercado Pago reclamou, mostra o erro
-        echo json_encode([
-            "erro" => "Mercado Pago rejeitou.", 
-            "detalhes" => $mp
-        ]);
+        echo json_encode(["erro" => "Erro MP", "detalhes" => $mp]);
     }
 
 } catch (Exception $e) {
-    // Se der qualquer erro no caminho (banco ou codigo), mostra aqui
     http_response_code(500);
-    echo json_encode([
-        "erro" => "Erro Crítico no PHP", 
-        "mensagem" => $e->getMessage()
-    ]);
+    echo json_encode(["erro" => "Erro Interno: " . $e->getMessage()]);
 }
 ?>

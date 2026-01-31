@@ -204,6 +204,37 @@
 
         // Inicia a loja
         buscarProdutos();
+        // 2. NOVA FUNÇÃO DE COMPRAR (Redireciona para o MP)
+        async function iniciarCheckout(nome, preco, botao) {
+            const textoOriginal = botao.innerText;
+            botao.innerText = "Aguarde...";
+            botao.disabled = true;
+
+            try {
+                const response = await fetch('../api/checkout.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nome: nome, preco: preco })
+                });
+
+                const resultado = await response.json();
+
+                if (resultado.sucesso) {
+                    // SUCESSO! Redireciona o cliente para pagar no Mercado Pago
+                    window.location.href = resultado.link;
+                } else {
+                    alert("Erro: " + (resultado.erro || "Falha ao criar pagamento"));
+                    console.error(resultado);
+                }
+
+            } catch (erro) {
+                console.error(erro);
+                alert("Erro de conexão.");
+            }
+
+            botao.innerText = textoOriginal;
+            botao.disabled = false;
+        }
     </script>
 
 </body>
