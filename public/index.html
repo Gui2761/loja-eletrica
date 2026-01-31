@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EletroShop Profissional</title>
+    <style>
+        /* Um CSS básico para não ficar feio */
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        header { text-align: center; margin-bottom: 40px; }
+        
+        .grid-produtos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { font-size: 1.1rem; color: #333; height: 50px; }
+        .price { font-size: 1.4rem; color: #2ecc71; font-weight: bold; margin: 15px 0; }
+        .btn-comprar {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+        }
+        .btn-comprar:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚡ EletroShop</h1>
+        <p>Materiais elétricos com entrega rápida</p>
+    </header>
+
+    <div id="lista-produtos" class="grid-produtos">
+        <p style="text-align:center; width:100%">Carregando estoque...</p>
+    </div>
+
+    <script>
+        async function buscarProdutos() {
+            try {
+                // Chama a nossa API PHP
+                // Nota: O "../api" sobe uma pasta para achar o arquivo
+                const response = await fetch('../api/produtos.php');
+                const produtos = await response.json();
+
+                const container = document.getElementById('lista-produtos');
+                container.innerHTML = ''; // Limpa o carregando
+
+                produtos.forEach(produto => {
+                    const div = document.createElement('div');
+                    div.className = 'card';
+                    div.innerHTML = `
+                        <h3>${produto.name}</h3>
+                        <p style="font-size:0.9rem; color:#666">${produto.description}</p>
+                        <div class="price">R$ ${parseFloat(produto.price).toFixed(2).replace('.', ',')}</div>
+                        <button class="btn-comprar" onclick="iniciarCheckout('${produto.name}', ${produto.price})">
+                            Comprar Agora
+                        </button>
+                    `;
+                    container.appendChild(div);
+                });
+
+            } catch (erro) {
+                console.error(erro);
+                document.getElementById('lista-produtos').innerHTML = '<p>Erro ao carregar produtos. Verifique se o XAMPP está rodando.</p>';
+            }
+        }
+
+        function iniciarCheckout(nome, preco) {
+            alert(`Você clicou em comprar: ${nome}\nValor: R$ ${preco}\n\n(No próximo passo, isso vai gerar o PIX!)`);
+        }
+
+        // Roda a função assim que abre a tela
+        buscarProdutos();
+    </script>
+
+</body>
+</html>
